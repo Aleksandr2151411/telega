@@ -13,9 +13,10 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
-
+# панель команд на клавиатуре пользователя
 reply_keyboard = [['/start', '/help'], ['/dialog', '/anek'], ['/date', '/time']]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+# списки, содержащие анекдоты и месяца
 ANEKI = [
     '''- Доктор, у меня нос чешется.
 - Мой чаще.
@@ -34,6 +35,7 @@ ANEKI = [
 months = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
 
+# дефолтный ответ на сообщение пользователя
 async def echo(update, context):
     await update.message.reply_text('Прости, но я тебя не понимаю, введи /help, чтобы посмотреть список команд.')
 
@@ -44,13 +46,15 @@ async def close_keyboard(update, context):
     )
 
 
+# команда старт
 async def start(update, context):
     user = update.effective_user
     await update.message.reply_text(
         rf"Привет, {user.username}! Я Globus!", reply_markup=markup
-    )
+    ) # приветствие и обновление клавиатуры с подсказками
 
 
+# команда хелп
 async def help(update, context):
     await update.message.reply_text("""Смотри, что я умею:
     /geo + <место> - показать желаемое место на карте
@@ -60,31 +64,35 @@ async def help(update, context):
     /date - напомню дату""")
 
 
+# команда показывающая пользователю текущее время
 async def time(update, context):
     t = str(datetime.datetime.now().time())[:5]
     await update.message.reply_text(f"Точное время - {t[:2]} часов {t[3:]} минут.")
 
 
+# команда показывающая пользователю текущую дату
 async def date(update, context):
     d = str(datetime.date.today()).split('-')
     await update.message.reply_text(f'Сегодня {d[2]} {months[int(d[1])]} {d[0]} года.')
 
 
+# отправка случайного анекдота из списка
 async def anek(update, context):
     await update.message.reply_text(ANEKI[randrange(0, len(ANEKI))])
 
 
+# начало диалога
 async def dialog(update, context):
     await update.message.reply_text(
         """Что ж, давай поговорим.
 Если надоест, введи команду /stop.
 Какое твоё любимое животное?"""
     )
-    return 1
+    return 1 # отсылка на первый ответ по сценарию
 
 
 async def first_response(update, context):
-    context.user_data['local'] = update.message.text
+    context.user_data['local'] = update.message.text # фиксирование ответов пользователя
     dopstroka = ''
     if context.user_data['local'].lower() in ['кот', 'кошка', 'киса', 'кошечка', 'котик', 'kitty cat', 'котейка', 'кiт']:
         dopstroka = ' тоже'
@@ -93,7 +101,7 @@ async def first_response(update, context):
 О, а я{dopstroka} котов люблю, они милые)
 Какой твой любимый цвет?"""
     )
-    return 2
+    return 2 # отсылка на второй ответ по сценарию
 
 
 async def second_response(update, context):
@@ -103,7 +111,7 @@ async def second_response(update, context):
 искренне желаю, чтобы в твоей жизни появился {context.user_data['data'].lower()} {context.user_data['local'].lower()}!
 Кстати, а где ты живёшь?"""
     )
-    return 3
+    return 3 # отсылка на третий ответ по сценарию
 
 
 async def third_response(update, context):
@@ -115,14 +123,16 @@ async def third_response(update, context):
 Хочешь, я покажу тебе твоё место жительства на карте?
 Просто введи /geo + нужное тебе место."""
     await update.message.reply_text(te)
-    return ConversationHandler.END
+    return ConversationHandler.END # окончание сценария
 
 
+# функция для принудительного окончания сценария диалога
 async def stop(update, context):
     await update.message.reply_text("Ну ладно... Поговорим в другой раз.")
-    return ConversationHandler.END
+    return ConversationHandler.END # окончание сценария
 
 
+# создание упорядоченного диалога с пользователем
 conv_handler = ConversationHandler(
     entry_points=[CommandHandler('dialog', dialog)],
 
@@ -135,6 +145,7 @@ conv_handler = ConversationHandler(
 )
 
 
+# масштаб
 def get_ll_spans(toponym):
     if not toponym:
         return (None, None)
@@ -150,28 +161,30 @@ def get_ll_spans(toponym):
     return ll, span
 
 
+# получение ответа по запросу
 async def get_response(geocoder_url, params):
     async with aiohttp.ClientSession() as session:
         async with session.get(geocoder_url, params=params) as response:
-            return await response.json()
+            return await response.json() # возврат топонима в формате json
 
 
+# основная функция возвращающая пользователю изображение с местом на карте
 async def geocoder(update, cotext):
-    zapros = update.message.text[5:]
+    zapros = update.message.text[5:] # отделение запроса от идущей перед ним команды гео и пробела
     c = 0
-    for i in zapros.lower():
+    for i in zapros.lower(): # определение наличия в запросе хотя бы одной буквы
         if i in 'qwertyuiopasdfghjklzxcvbnmёйцукенгшщзхъфывапролджэячсмитьбю':
             c += 1
-    if update.message.text[5:] == '' or c == 0:
+    if update.message.text[5:] == '' or c == 0: # проверка запроса на корректность
         await update.message.reply_text("Некорректный запрос!")
     geocoder_url = "http://geocode-maps.yandex.ru/1.x/"
     response = await get_response(geocoder_url, params={
         "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
         "format": "json",
         "geocode": update.message.text[5:]
-    })
+    }) # запрос на сервер
 
-    if response["response"]["GeoObjectCollection"]["featureMember"] == []:
+    if response["response"]["GeoObjectCollection"]["featureMember"] == []: # проверка наличия полученных данных, чтобы избежать "молчания" бота
         await update.message.reply_text("Че-т я такого места не знаю, напиши более корректно, пожалуйста.")
     else:
 
@@ -180,7 +193,7 @@ async def geocoder(update, cotext):
         ll, spn = get_ll_spans(toponym)
 
         static_api_request = f"http://static-maps.yandex.ru/1.x/?ll={ll}&spn={spn}&l=map"
-        if "description" in toponym:
+        if "description" in toponym: # проверка наличия описания в топониме
             de = toponym["description"]
         else:
             de = 'планета Земля'
@@ -197,8 +210,9 @@ async def geocoder(update, cotext):
 
 
 def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-    text_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, echo)
+    application = Application.builder().token(BOT_TOKEN).build() # привязка к тг боту
+    text_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, echo) # то что отвечает за реакцию бота на текст (фуекция)
+    # добавление прочих функций
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("anek", anek))
@@ -206,7 +220,6 @@ def main():
     application.add_handler(CommandHandler("date", date))
     application.add_handler(CommandHandler("close", close_keyboard))
     application.add_handler(CommandHandler("geo", geocoder))
-
     application.add_handler(conv_handler)
     application.add_handler(text_handler)
 
